@@ -8,11 +8,10 @@ export default function Join() {
   const navigate = useNavigate();
 
   const handleJoinQuiz = (e) => {
+    // Redirect to quiz room page
+    navigate(`/quiz/${joinForm.roomCode}`, { state: { username: joinForm.username } });
     e.preventDefault();
-    if (joinForm.username && joinForm.roomCode) {
-      console.log("Joining quiz:", joinForm);
-      // TODO: Add join quiz logic
-    }
+    
   };
 
   const handleCreateQuiz = (e) => {

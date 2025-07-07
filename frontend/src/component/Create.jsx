@@ -1,10 +1,16 @@
 import { useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+
 
 export default function Create() {
   const [quizName, setQuizName] = useState("");
   const [questions, setQuestions] = useState([
     { question: "", options: ["", ""], correct: 0 }
   ]);
+
+  const navigate = useNavigate();
+
 
   const handleQuizNameChange = (e) => setQuizName(e.target.value);
 
@@ -53,6 +59,33 @@ export default function Create() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!quizName.trim() || questions.length === 0) {
+      alert("Please enter a quiz name and at least one question.");
+      return;
+    }
+
+    // Prepare quiz data
+    const quizData = {
+      title: quizName,
+      questions: questions.map(q => ({
+        question: q.question,
+        options: q.options,
+        correctAnswer: q.correct
+      }))
+    };
+
+    const rexponse = axios.post("http://localhost:5000/api/quiz/create", quizData)
+      .then(response => { 
+        const roomCode = response.data.roomCode; // Assuming the response contains the room cod
+        console.log("Quiz created successfully:", response.data);
+        alert("Quiz created successfully!");
+        navigate(`/host/${roomCode}`); // Redirect to home or quiz list page
+        // Redirect or show success message
+      })
+      .catch(error => {
+        console.error("Error creating quiz:", error);
+        alert("Failed to create quiz. Please try again.");
+      });
     // TODO: Submit quiz logic
     console.log({ quizName, questions });
   };
