@@ -1,15 +1,28 @@
- import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { socket } from "../socket";
 import { useParams } from "react-router-dom";
 
 const HostPage = () => {
   const { roomCode } = useParams();
   const [participants, setParticipants] = useState([]);
+  const [quizStarted, setQuizStarted] = useState(false);
 
   useEffect(() => {
     socket.emit("join_room", { roomCode, username: "Host" });
-    socket.on("room_users", setParticipants);
-    return () => socket.off("room_users");
+    socket.on("room_users", (users) => {
+      // Filter to unique usernames only and remove "Host"
+      const unique = users
+        .filter(u => u.username !== "Host")
+        .filter((user, idx, arr) => arr.findIndex(u => u.username === user.username) === idx);
+      setParticipants(unique);
+    });
+    socket.on("new_question", () => {
+      setQuizStarted(true);
+    });
+    return () => {
+      socket.off("room_users");
+      socket.off("new_question");
+    };
   }, [roomCode]);
 
   const startQuiz = () => {
@@ -40,8 +53,9 @@ const HostPage = () => {
         <button
           onClick={startQuiz}
           className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-gray-800 to-gray-700 hover:from-gray-700 hover:to-gray-600 shadow-lg hover:shadow-xl transition-all duration-200 rounded-md text-white"
+          disabled={quizStarted}
         >
-          Start Quiz
+          {quizStarted ? "Started" : "Start Quiz"}
         </button>
       </div>
     </div>

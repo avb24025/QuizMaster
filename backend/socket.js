@@ -25,6 +25,13 @@ function socketHandler(io) {
       const quiz = await Quiz.findOne({ roomCode });
       if (!quiz) return;
 
+      // Reset scores for all users except host
+      if (activeRooms[roomCode]) {
+        activeRooms[roomCode].users = activeRooms[roomCode].users.map(u =>
+          u.username === "Host" ? u : { ...u, score: 0 }
+        );
+      }
+
       activeRooms[roomCode].questions = quiz.questions;
       activeRooms[roomCode].quizStarted = true;
       activeRooms[roomCode].currentQuestionIndex = 0;
@@ -34,9 +41,24 @@ function socketHandler(io) {
 
     socket.on("submit_answer", ({ roomCode, username, answer }) => {
       const room = activeRooms[roomCode];
+      if (!room) return;
       const question = room.questions[room.currentQuestionIndex];
+      if (!question) return;
       const user = room.users.find(u => u.username === username);
-      if (question.correctAnswer === answer) user.score++;
+      if (!user) return;
+
+      // Only allow one submission per user per question
+      if (!room.answers) room.answers = {};
+      if (!room.answers[room.currentQuestionIndex]) room.answers[room.currentQuestionIndex] = {};
+      // If already answered, do not update score again
+      if (room.answers[room.currentQuestionIndex][username] !== undefined) return;
+
+      room.answers[room.currentQuestionIndex][username] = answer;
+
+      // Compare as number for index-based answers
+      if (Number(question.correct) === Number(answer)) {
+        user.score++;
+      }
     });
 
     socket.on("disconnect", () => {
@@ -55,9 +77,16 @@ function sendQuestion(io, roomCode) {
 
   if (!question) {
     // No more questions, end the quiz
-    io.to(roomCode).emit("quiz_ended", room.users);
+    const leaderboard = room.users.filter(u => u.username !== "Host");
+    io.to(roomCode).emit("quiz_ended", leaderboard);
+    // Clean up answers for next quiz
+    room.answers = {};
     return;
   }
+
+  // Reset answers for this question
+  if (!room.answers) room.answers = {};
+  room.answers[room.currentQuestionIndex] = {};
 
   io.to(roomCode).emit("new_question", {
     question: question.question,
@@ -65,12 +94,15 @@ function sendQuestion(io, roomCode) {
   });
 
   setTimeout(() => {
-    io.to(roomCode).emit("leaderboard", room.users);
+    const leaderboard = room.users.filter(u => u.username !== "Host");
+    io.to(roomCode).emit("leaderboard", leaderboard);
     room.currentQuestionIndex++;
     if (room.currentQuestionIndex < room.questions.length) {
       setTimeout(() => sendQuestion(io, roomCode), 5000);
     } else {
-      io.to(roomCode).emit("quiz_ended", room.users);
+      io.to(roomCode).emit("quiz_ended", leaderboard);
+      // Clean up answers for next quiz
+      room.answers = {};
     }
   }, 30000);
 }
